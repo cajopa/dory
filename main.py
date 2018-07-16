@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
-import json
+import os
 import random
 import string
 
-from flask import Flask, request, Response
+from flask import Flask, request, Response, jsonify
 import redis
 
 
@@ -12,8 +12,22 @@ class DoryApp(Flask):
     def __init__(self):
         super(DoryApp, self).__init__('dory')
         
+        self.config.update(
+            REDIS_HOST='localhost',
+            REDIS_PORT=6379,
+            REDIS_DB=0,
+            
+            SERVER_NAME = '0.0.0.0:5001'
+        )
+        
+        self.config.from_json(os.environ.get('DORY_CONF', 'dory.conf'))
+        
         #TODO: load host, port, and db from confs
-        self.redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
+        self.redis_client = redis.StrictRedis(
+            host=self.config['REDIS_HOST'],
+            port=self.config['REDIS_PORT'],
+            db=self.config['REDIS_DB']
+        )
         
         self.add_url_rule('/', 'receive_data', self.receive_data, methods=['POST'])
         self.add_url_rule('/<id_>', 'divulge_data', self.divulge_data, methods=['GET'])
@@ -25,10 +39,7 @@ class DoryApp(Flask):
             if self.redis_client.set(keyname, request.get_data(cache=False), ex=60, nx=True):
                 break
         
-        return Response(
-            response=json.dumps({'url': keyname}),
-            mimetype='application/json'
-        )
+        return jsonify({'url': keyname})
 
     def divulge_data(self, id_=None):
         with self.redis_client.pipeline() as p:
@@ -37,7 +48,7 @@ class DoryApp(Flask):
             to_return = p.execute()[0]
         
         if to_return:
-            return self.make_response(to_return)
+            return Response(response=to_return, mimetype='application/octet-stream')
         else:
             return Response(status=404)
     
@@ -47,4 +58,4 @@ class DoryApp(Flask):
 
 
 if __name__=='__main__':
-    DoryApp().run(host='0.0.0.0', port=5001)
+    DoryApp().run()
