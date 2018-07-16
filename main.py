@@ -4,7 +4,7 @@ import json
 import random
 import string
 
-from flask import Flask, request, Response
+from flask import Flask, request, Response, abort
 import redis
 
 
@@ -22,7 +22,10 @@ def receive_data():
         if redis_client.set(keyname, request.get_data(cache=False), ex=60, nx=True):
             break
     
-    return Response(response=json.dumps({'url': keyname}), mimetype='application/json')
+    return Response(
+        response=json.dumps({'url': keyname}),
+        mimetype='application/json'
+    )
 
 @app.route('/<id_>', methods=['GET'])
 def divulge_data(id_=None):
@@ -34,7 +37,7 @@ def divulge_data(id_=None):
     if to_return:
         return app.make_response(to_return)
     else:
-        return Response(status=404)
+        abort(404)
 
 def random_keyname():
     return ''.join(random.choice(string.ascii_lowercase) for _ in range(32))
